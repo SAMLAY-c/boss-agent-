@@ -562,6 +562,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 }
 
                 const computeMode = data.computeMode || 'energy';
+                const hasApiKey = !!data.apiKey;
+                const serverlessAvailable = !!SERVERLESS_URL && !SERVERLESS_URL.includes("service-xxxx");
 
                 if (computeMode === 'custom_key') {
                     if (!data.apiKey) {
@@ -580,10 +582,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     );
                 } else {
                     const energy = data.energyCount !== undefined ? data.energyCount : 3;
-                    if (energy < 1) {
+                    const hasUserKey = !!data.userKey;
+
+                    if (!serverlessAvailable || !hasUserKey || energy < 1) {
+                        if (hasApiKey) {
+                            await handleDirectGreetingCall(
+                                data.apiKey,
+                                data.chatSystemPrompt,
+                                data.resume,
+                                jobText,
+                                hrName,
+                                bossTitle,
+                                sendResponse,
+                                sender.tab ? sender.tab.id : null
+                            );
+                            return;
+                        }
+                        if (!serverlessAvailable) {
+                            sendResponse({ success: false, error: "Serverless URL 未配置，请修改 background.js 并刷新插件" });
+                            return;
+                        }
+                        if (!hasUserKey) {
+                            sendResponse({ success: false, error: "请先在插件配置中输入能量密钥" });
+                            return;
+                        }
                         sendResponse({ success: false, error: "ENERGY_EXHAUSTED" });
                         return;
                     }
+
                     await handleServerlessGreetingCall(
                         clientId,
                         data.chatSystemPrompt,
